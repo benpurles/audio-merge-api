@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, jsonify
+ from flask import Flask, request, send_file, jsonify
 from pydub import AudioSegment
 import requests
 from io import BytesIO
@@ -15,9 +15,11 @@ def fetch_audio(url):
         response = requests.get(url, stream=True, allow_redirects=True)
         response.raise_for_status()
 
+        # Check for HTML content (e.g., failed link or preview page)
         if 'text/html' in response.headers.get('Content-Type', ''):
-            raise Exception("URL returned HTML instead of audio.")
+            raise Exception("URL returned HTML instead of audio. Check the link.")
 
+        # Guess format from extension
         ext = url.split('.')[-1].split('?')[0].lower()
         audio_format = 'mp3' if ext not in ['m4a', 'aac', 'wav'] else ext
 
@@ -42,7 +44,6 @@ def merge_audio():
 
         audio1 = fetch_audio(url1)
         audio2 = fetch_audio(url2)
-
         combined = audio1 + audio2
 
         # Export to temp file
@@ -50,18 +51,17 @@ def merge_audio():
             combined.export(out_file.name, format='mp3')
             out_file.flush()
 
-            # Upload to transfer.sh (1-file sharing service)
+            # Upload to file.io
             with open(out_file.name, 'rb') as f:
-                upload = requests.put('https://transfer.sh/merged-audio.mp3', data=f)
+                upload = requests.post("https://file.io", files={"file": f})
                 if upload.status_code != 200:
                     raise Exception(f"Upload failed: {upload.text}")
-                share_url = upload.text.strip()
+                share_url = upload.json().get("link")
 
         return jsonify({'merged_url': share_url})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 if __name__ == '__main__':
     app.run(debug=True)
