@@ -9,6 +9,19 @@ app = Flask(__name__)
 def home():
     return 'Audio Merge API is running!'
 
+def fetch_audio(url):
+    try:
+        response = requests.get(url, stream=True, allow_redirects=True)
+        response.raise_for_status()
+
+        # Check if we accidentally got HTML (Google Drive sometimes returns HTML)
+        if 'text/html' in response.headers.get('Content-Type', ''):
+            raise Exception("URL returned HTML instead of an audio file. Check file permissions or rehost it.")
+
+        return AudioSegment.from_file(BytesIO(response.content))
+    except Exception as e:
+        raise Exception(f"Failed to fetch audio from {url}: {e}")
+
 @app.route('/merge-audio', methods=['POST'])
 def merge_audio():
     try:
@@ -19,11 +32,11 @@ def merge_audio():
         if not url1 or not url2:
             return jsonify({'error': 'Both url1 and url2 are required.'}), 400
 
-        # Download and load audio files
-        audio1 = AudioSegment.from_file(BytesIO(requests.get(url1).content))
-        audio2 = AudioSegment.from_file(BytesIO(requests.get(url2).content))
+        # Fetch and load both audio files
+        audio1 = fetch_audio(url1)
+        audio2 = fetch_audio(url2)
 
-        # Merge audio
+        # Merge the two audio clips
         combined = audio1 + audio2
 
         # Export merged audio to buffer
@@ -43,3 +56,4 @@ def merge_audio():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
