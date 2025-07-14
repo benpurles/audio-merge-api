@@ -40,27 +40,28 @@ def merge_audio():
         if not url1 or not url2:
             return jsonify({'error': 'Both url1 and url2 are required.'}), 400
 
-        # Fetch both audio files
         audio1 = fetch_audio(url1)
         audio2 = fetch_audio(url2)
 
-        # Merge audio files
         combined = audio1 + audio2
 
-        # Export the result to a BytesIO buffer
-        output_buffer = BytesIO()
-        combined.export(output_buffer, format='mp3')
-        output_buffer.seek(0)
+        # Export to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as out_file:
+            combined.export(out_file.name, format='mp3')
+            out_file.flush()
 
-        return send_file(
-            output_buffer,
-            mimetype='audio/mpeg',
-            as_attachment=True,
-            download_name='merged_audio.mp3'
-        )
+            # Upload to transfer.sh (1-file sharing service)
+            with open(out_file.name, 'rb') as f:
+                upload = requests.put('https://transfer.sh/merged-audio.mp3', data=f)
+                if upload.status_code != 200:
+                    raise Exception(f"Upload failed: {upload.text}")
+                share_url = upload.text.strip()
+
+        return jsonify({'merged_url': share_url})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
