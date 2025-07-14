@@ -15,16 +15,17 @@ def fetch_audio(url):
         response = requests.get(url, stream=True, allow_redirects=True)
         response.raise_for_status()
 
-        # Check if we got HTML instead of audio (common with Google Drive)
         if 'text/html' in response.headers.get('Content-Type', ''):
-            raise Exception("URL returned HTML instead of audio. Check the file's share settings or rehost it.")
+            raise Exception("URL returned HTML instead of audio.")
 
-        # Save streamed audio to a temp file to reduce memory usage
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
+        ext = url.split('.')[-1].split('?')[0].lower()
+        audio_format = 'mp3' if ext not in ['m4a', 'aac', 'wav'] else ext
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_format}") as temp_audio:
             for chunk in response.iter_content(chunk_size=8192):
                 temp_audio.write(chunk)
             temp_audio.flush()
-            return AudioSegment.from_file(temp_audio.name, format="mp3")
+            return AudioSegment.from_file(temp_audio.name, format=audio_format)
 
     except Exception as e:
         raise Exception(f"Failed to fetch or decode audio from {url}: {e}")
